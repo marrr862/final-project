@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+kafka-python
+pydantic
+python-dotenv
+sqlalchemy
+psycopg2-binary
+streamlit
+pandas
+plotly
