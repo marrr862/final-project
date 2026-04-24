@@ -20,9 +20,16 @@ def get_producer(retries=12, delay=5):
     raise Exception("Could not connect to Kafka")
 
 
-producer = get_producer()
+try:
+    producer = get_producer()
+except Exception as e:
+    print("Kafka not available:", e)
+    producer = None
 
 
 def send_event_to_kafka(event_data: dict, topic: str):
-    producer.send(topic, event_data)
-    producer.flush()
+    if producer:
+        producer.send(topic, event_data)
+        producer.flush()
+    else:
+        print("Kafka is not available. Event was not sent to Kafka.")
