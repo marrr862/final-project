@@ -58,3 +58,40 @@ def create_event(event: UserEvent, db: Session = Depends(get_db)):
 @app.get("/events")
 def get_events(db: Session = Depends(get_db)):
     return db.query(Event).all()
+
+
+@app.get("/health")
+def health_check():
+    return {
+        "status": "ok",
+        "service": "User Behavior Analytics API"
+    }
+
+
+@app.get("/analytics/summary")
+def analytics_summary(db: Session = Depends(get_db)):
+    events = db.query(Event).all()
+
+    if not events:
+        return {
+            "total_events": 0,
+            "total_users": 0,
+            "top_page": None,
+            "top_event_type": None
+        }
+
+    total_events = len(events)
+    total_users = len(set(event.user_id for event in events))
+
+    pages = [event.page for event in events if event.page]
+    event_types = [event.event_type for event in events if event.event_type]
+
+    top_page = max(set(pages), key=pages.count) if pages else None
+    top_event_type = max(set(event_types), key=event_types.count) if event_types else None
+
+    return {
+        "total_events": total_events,
+        "total_users": total_users,
+        "top_page": top_page,
+        "top_event_type": top_event_type
+    }
