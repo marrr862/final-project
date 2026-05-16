@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import requests
-
+from collections import Counter
 st.set_page_config(
     page_title="User Behavior Analytics Dashboard",
     layout="wide"
