@@ -12,7 +12,12 @@ API_URL = "https://web-production-30c3e.up.railway.app"
 
 st.title("📊 User Behavior Analytics Dashboard")
 st.caption("Cloud-connected dashboard using Railway FastAPI backend")
+st.sidebar.header("Live Controls")
 
+auto_refresh = st.sidebar.checkbox("Enable Auto Refresh")
+
+if auto_refresh:
+    st.rerun()
 # Sidebar
 st.sidebar.header("Settings")
 api_url = st.sidebar.text_input("API URL", API_URL)
@@ -191,7 +196,29 @@ if st.button("Get Recommendation"):
         st.json(recommendation)
 
 st.markdown("---")
+st.markdown("---")
 
+st.subheader("🏆 Top Active Users")
+
+engagement = get_data("/analytics/engagement")
+
+if engagement:
+    engagement_df = pd.DataFrame(engagement)
+
+    st.dataframe(
+        engagement_df.head(10),
+        use_container_width=True
+    )
+
+    fig = px.bar(
+        engagement_df.head(10),
+        x="user_id",
+        y="engagement_score",
+        color="engagement_level",
+        title="Top User Engagement Scores"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 # Latest events
 st.subheader("Latest Events")
 

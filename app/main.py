@@ -233,3 +233,30 @@ def fraud_users(db: Session = Depends(get_db)):
         })
 
     return result
+
+@app.get("/analytics/engagement")
+def engagement_analytics(db: Session = Depends(get_db)):
+    events = db.query(Event).all()
+
+    user_counts = Counter(event.user_id for event in events)
+
+    result = []
+
+    for user_id, count in user_counts.items():
+        if count <= 2:
+            engagement_level = "Low"
+        elif count <= 5:
+            engagement_level = "Medium"
+        else:
+            engagement_level = "High"
+
+        engagement_score = min(count * 10, 100)
+
+        result.append({
+            "user_id": user_id,
+            "event_count": count,
+            "engagement_score": engagement_score,
+            "engagement_level": engagement_level
+        })
+
+    return sorted(result, key=lambda x: x["engagement_score"], reverse=True)
