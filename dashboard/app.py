@@ -1,245 +1,207 @@
-from recommendation import recommend_category
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from sqlalchemy import create_engine
-from anomaly import analyze_users
+import requests
 
-st.set_page_config(page_title="User Behavior Dashboard", layout="wide")
+st.set_page_config(
+    page_title="User Behavior Analytics Dashboard",
+    layout="wide"
+)
 
-DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/user_events_db"
-engine = create_engine(DATABASE_URL)
+API_URL = "https://web-production-30c3e.up.railway.app"
 
 st.title("📊 User Behavior Analytics Dashboard")
+st.caption("Cloud-connected dashboard using Railway FastAPI backend")
 
-# Load data
-query = "SELECT * FROM events ORDER BY id DESC;"
-df = pd.read_sql(query, engine)
+# Sidebar
+st.sidebar.header("Settings")
+api_url = st.sidebar.text_input("API URL", API_URL)
 
-if df.empty:
-    st.warning("No events found in database.")
+if st.sidebar.button("Refresh Data"):
+    st.rerun()
+
+# API helper
+def get_data(endpoint):
+    try:
+        response = requests.get(f"{api_url}{endpoint}", timeout=10)
+        if response.status_code == 200:
+            return response.json()
+        st.error(f"Error {response.status_code}: {response.text}")
+        return None
+    except Exception as e:
+        st.error(f"Could not connect to API: {e}")
+        return None
+
+# API status
+health = get_data("/health")
+
+if health:
+    st.success("✅ Cloud API is online")
+else:
+    st.error("❌ Cloud API is not available")
     st.stop()
 
-# Prepare data
-df["timestamp"] = pd.to_datetime(df["timestamp"])
+# Load data
+events = get_data("/events")
+summary = get_data("/analytics/summary")
+users = get_data("/analytics/users")
+pages = get_data("/analytics/pages")
+event_types = get_data("/analytics/events")
+categories = get_data("/analytics/categories")
+fraud_users = get_data("/fraud/users")
 
-# Sidebar filters
+if not events:
+    st.warning("No events found.")
+    st.stop()
+
+df = pd.DataFrame(events)
+
+if "timestamp" in df.columns:
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+# Filters
 st.sidebar.header("Filters")
 
-user_ids = ["All"] + sorted(df["user_id"].dropna().astype(str).unique().tolist())
-event_types = ["All"] + sorted(df["event_type"].dropna().astype(str).unique().tolist())
-pages = ["All"] + sorted(df["page"].dropna().astype(str).unique().tolist())
+user_filter = st.sidebar.selectbox(
+    "User ID",
+    ["All"] + sorted(df["user_id"].dropna().astype(str).unique().tolist())
+)
 
-selected_user = st.sidebar.selectbox("User ID", user_ids)
-selected_event = st.sidebar.selectbox("Event Type", event_types)
-selected_page = st.sidebar.selectbox("Page", pages)
+event_filter = st.sidebar.selectbox(
+    "Event Type",
+    ["All"] + sorted(df["event_type"].dropna().astype(str).unique().tolist())
+)
+
+page_filter = st.sidebar.selectbox(
+    "Page",
+    ["All"] + sorted(df["page"].dropna().astype(str).unique().tolist())
+)
 
 filtered_df = df.copy()
 
-if selected_user != "All":
-    filtered_df = filtered_df[filtered_df["user_id"].astype(str) == selected_user]
+if user_filter != "All":
+    filtered_df = filtered_df[filtered_df["user_id"].astype(str) == user_filter]
 
-if selected_event != "All":
-    filtered_df = filtered_df[filtered_df["event_type"] == selected_event]
+if event_filter != "All":
+    filtered_df = filtered_df[filtered_df["event_type"] == event_filter]
 
-if selected_page != "All":
-    filtered_df = filtered_df[filtered_df["page"] == selected_page]
-
-if filtered_df.empty:
-    st.warning("No data for selected filters.")
-    st.stop()
+if page_filter != "All":
+    filtered_df = filtered_df[filtered_df["page"] == page_filter]
 
 # KPI cards
-total_events = len(filtered_df)
-total_users = filtered_df["user_id"].nunique()
-
-top_page = (
-    filtered_df["page"].mode().iloc[0]
-    if filtered_df["page"].dropna().shape[0] > 0
-    else "N/A"
-)
-
-top_event = (
-    filtered_df["event_type"].mode().iloc[0]
-    if filtered_df["event_type"].dropna().shape[0] > 0
-    else "N/A"
-)
+st.subheader("Overview")
 
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Total Events", total_events)
-col2.metric("Total Users", total_users)
-col3.metric("Top Page", top_page)
-col4.metric("Top Event", top_event)
+
+col1.metric("Total Events", summary.get("total_events", 0))
+col2.metric("Total Users", summary.get("total_users", 0))
+col3.metric("Top Page", summary.get("top_page", "N/A"))
+col4.metric("Top Event", summary.get("top_event_type", "N/A"))
 
 st.markdown("---")
 
-# Charts row 1
+# Charts
 c1, c2 = st.columns(2)
 
 with c1:
-    st.subheader("Event Type Distribution")
-    event_counts = filtered_df["event_type"].value_counts().reset_index()
-    event_counts.columns = ["event_type", "count"]
-    fig1 = px.bar(
-        event_counts,
-        x="event_type",
-        y="count",
-        title="Events by Type"
-    )
-    st.plotly_chart(fig1, use_container_width=True)
+    st.subheader("Event Types")
+    if event_types:
+        event_df = pd.DataFrame(event_types)
+        fig = px.bar(event_df, x="event_type", y="count", title="Events by Type")
+        st.plotly_chart(fig, use_container_width=True)
 
 with c2:
     st.subheader("Top Pages")
-    page_counts = filtered_df["page"].value_counts().reset_index()
-    page_counts.columns = ["page", "count"]
-    fig2 = px.bar(
-        page_counts,
-        x="page",
-        y="count",
-        title="Page Popularity"
-    )
-    st.plotly_chart(fig2, use_container_width=True)
+    if pages:
+        pages_df = pd.DataFrame(pages)
+        fig = px.bar(pages_df, x="page", y="count", title="Page Popularity")
+        st.plotly_chart(fig, use_container_width=True)
 
-# Charts row 2
 c3, c4 = st.columns(2)
 
 with c3:
-    st.subheader("Active Users")
-    user_counts = filtered_df["user_id"].value_counts().reset_index()
-    user_counts.columns = ["user_id", "count"]
-    fig3 = px.bar(
-        user_counts,
-        x="user_id",
-        y="count",
-        title="User Activity"
-    )
-    st.plotly_chart(fig3, use_container_width=True)
+    st.subheader("Categories")
+    if categories:
+        cat_df = pd.DataFrame(categories)
+        fig = px.pie(cat_df, names="category", values="count", title="Category Distribution")
+        st.plotly_chart(fig, use_container_width=True)
 
 with c4:
     st.subheader("Events Over Time")
-    time_counts = (
-        filtered_df.groupby(filtered_df["timestamp"].dt.floor("min"))
-        .size()
-        .reset_index(name="count")
-    )
-    fig4 = px.line(
-        time_counts,
-        x="timestamp",
-        y="count",
-        title="Events per Minute"
-    )
-    st.plotly_chart(fig4, use_container_width=True)
-
-# Extra charts
-c5, c6 = st.columns(2)
-
-with c5:
-    st.subheader("Category Distribution")
-    category_df = filtered_df.dropna(subset=["category"])
-    if not category_df.empty:
-        category_counts = category_df["category"].value_counts().reset_index()
-        category_counts.columns = ["category", "count"]
-        fig5 = px.pie(
-            category_counts,
-            names="category",
-            values="count",
-            title="Categories"
+    if "timestamp" in filtered_df.columns:
+        time_df = (
+            filtered_df.groupby(filtered_df["timestamp"].dt.floor("min"))
+            .size()
+            .reset_index(name="count")
         )
-        st.plotly_chart(fig5, use_container_width=True)
+        fig = px.line(time_df, x="timestamp", y="count", title="Events per Minute")
+        st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("---")
+
+# User analytics
+st.subheader("User Analytics")
+
+if users:
+    users_df = pd.DataFrame(users)
+    st.dataframe(users_df, use_container_width=True)
+
+    if "segment" in users_df.columns:
+        segment_df = users_df["segment"].value_counts().reset_index()
+        segment_df.columns = ["segment", "count"]
+        fig = px.pie(segment_df, names="segment", values="count", title="User Segments")
+        st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("---")
+
+# Fraud users
+st.subheader("Fraud / Suspicious Users")
+
+if fraud_users:
+    fraud_df = pd.DataFrame(fraud_users)
+
+    suspicious_df = fraud_df[fraud_df["status"] == "suspicious"]
+
+    if suspicious_df.empty:
+        st.success("No suspicious users detected.")
     else:
-        st.info("No category data available.")
+        st.error("Suspicious users detected!")
+        st.dataframe(suspicious_df, use_container_width=True)
 
-with c6:
-    st.subheader("Top Products")
-    product_df = filtered_df.dropna(subset=["product_id"])
-    if not product_df.empty:
-        product_counts = product_df["product_id"].value_counts().reset_index()
-        product_counts.columns = ["product_id", "count"]
-        fig6 = px.bar(
-            product_counts,
-            x="product_id",
-            y="count",
-            title="Top Products"
-        )
-        st.plotly_chart(fig6, use_container_width=True)
-    else:
-        st.info("No product data available.")
-
-st.markdown("---")
-
-# Basic insights
-st.subheader("Insights")
-
-most_active_user_simple = filtered_df["user_id"].value_counts().idxmax()
-most_active_user_count_simple = filtered_df["user_id"].value_counts().max()
-
-insight_text = f"""
-- Most active user: **{most_active_user_simple}** with **{most_active_user_count_simple}** events  
-- Most popular page: **{top_page}**  
-- Most frequent event type: **{top_event}**  
-- Unique users in current selection: **{total_users}**
-"""
-st.markdown(insight_text)
-
-st.markdown("---")
-
-# User analysis
-st.subheader("User Analysis (Fraud & Segmentation)")
-
-user_analysis = analyze_users(filtered_df)
-
-st.dataframe(user_analysis, use_container_width=True)
-
-suspicious = user_analysis[user_analysis["status"] == "suspicious"]
-
-if not suspicious.empty:
-    st.error("🚨 Suspicious users detected!")
-    st.dataframe(suspicious, use_container_width=True)
-else:
-    st.success("No suspicious users detected.")
-
-st.subheader("User Segments")
-
-segment_counts = user_analysis["segment"].value_counts().reset_index()
-segment_counts.columns = ["segment", "count"]
-
-fig7 = px.pie(segment_counts, names="segment", values="count", title="User Segmentation")
-st.plotly_chart(fig7, use_container_width=True)
-
-st.subheader("Smart Insights")
-
-most_active_user = user_analysis.loc[user_analysis["event_count"].idxmax()]
-
-smart_insight_text = f"""
-🔍 **System Insights:**
-
-- Most active user: **{most_active_user['user_id']}** with **{most_active_user['event_count']}** events  
-- Fraud risk level (max): **{round(user_analysis['fraud_score'].max(), 2)}**  
-- Dominant user segment: **{user_analysis['segment'].mode().iloc[0]}**
-"""
-
-st.markdown(smart_insight_text)
-
-st.markdown("---")
-
-
-st.markdown("---")
-st.subheader("Recommendations")
-
-recommendation_df = recommend_category(filtered_df)
-
-if recommendation_df.empty:
-    st.info("No recommendation data available.")
-else:
-    st.dataframe(recommendation_df, use_container_width=True)
-
-    fig8 = px.bar(
-        recommendation_df,
+    fig = px.bar(
+        fraud_df,
         x="user_id",
-        y="recommended_category",
-        title="Recommended Category by User"
+        y="fraud_score",
+        color="status",
+        title="Fraud Score by User"
     )
-    st.plotly_chart(fig8, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("---")
+
+# Recommendation section
+st.subheader("Recommendation Test")
+
+recommend_user_id = st.number_input("Enter User ID", min_value=1, step=1)
+
+if st.button("Get Recommendation"):
+    recommendation = get_data(f"/recommendations/{recommend_user_id}")
+    if recommendation:
+        st.success("Recommendation generated")
+        st.json(recommendation)
+
+st.markdown("---")
+
 # Latest events
 st.subheader("Latest Events")
-st.dataframe(filtered_df.head(20), use_container_width=True)
+
+st.dataframe(filtered_df.head(50), use_container_width=True)
+
+# CSV export
+csv = filtered_df.to_csv(index=False).encode("utf-8")
+st.download_button(
+    label="Download Filtered Events as CSV",
+    data=csv,
+    file_name="filtered_events.csv",
+    mime="text/csv"
+)
