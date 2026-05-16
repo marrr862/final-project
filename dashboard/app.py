@@ -218,8 +218,41 @@ if engagement:
         title="Top User Engagement Scores"
     )
 
+   
     st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("---")
+
+st.subheader("🧠 Smart Insights")
+
+if not filtered_df.empty:
+    most_active_user = filtered_df["user_id"].value_counts().idxmax()
+    most_common_event = filtered_df["event_type"].value_counts().idxmax()
+    most_popular_page = filtered_df["page"].value_counts().idxmax()
+
+    st.info(
+        f"""
+        Most active user is **{most_active_user}**.  
+        Most common event is **{most_common_event}**.  
+        Most popular page is **{most_popular_page}**.
+        """
+    )
+
+st.markdown("---")
+
+st.subheader("🕒 Recent Activity Feed")
+
+recent_df = filtered_df.sort_values("timestamp", ascending=False).head(10)
+
+for _, row in recent_df.iterrows():
+    st.write(
+        f"User **{row['user_id']}** did **{row['event_type']}** on **{row['page']}** "
+        f"at `{row['timestamp']}`"
+    )
+
 # Latest events
+
+
 st.subheader("Latest Events")
 
 st.dataframe(filtered_df.head(50), use_container_width=True)

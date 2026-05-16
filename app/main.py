@@ -260,3 +260,34 @@ def engagement_analytics(db: Session = Depends(get_db)):
         })
 
     return sorted(result, key=lambda x: x["engagement_score"], reverse=True)
+
+
+@app.get("/analytics/sessions")
+def session_analytics(db: Session = Depends(get_db)):
+    events = db.query(Event).all()
+
+    user_counts = Counter(event.user_id for event in events)
+
+    result = []
+
+    for user_id, count in user_counts.items():
+
+        if count <= 3:
+            session_type = "Short Session"
+        elif count <= 7:
+            session_type = "Medium Session"
+        else:
+            session_type = "Long Session"
+
+        result.append({
+            "user_id": user_id,
+            "session_events": count,
+            "session_type": session_type,
+            "active_status": "Active" if count > 5 else "Normal"
+        })
+
+    return sorted(
+        result,
+        key=lambda x: x["session_events"],
+        reverse=True
+    )
