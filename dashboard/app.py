@@ -104,6 +104,11 @@ search_user = st.sidebar.text_input("Search User ID")
 search_page = st.sidebar.text_input("Search Page")
 search_category = st.sidebar.text_input("Search Category")
 
+st.sidebar.markdown("---")
+
+if st.sidebar.button("🎲 Generate Demo Data"):
+    st.info("Run generate_test_data.py to create demo events")
+
 filtered_df = df.copy()
 
 if user_filter != "All":
@@ -433,6 +438,25 @@ if len(filtered_df) > 0:
         """
     )
 
+
+st.markdown("---")
+st.subheader("📢 Recent Activity Feed")
+
+recent_events = filtered_df.sort_values(
+    "timestamp",
+    ascending=False
+).head(10)
+
+for _, row in recent_events.iterrows():
+    st.write(
+        f"👤 User {row['user_id']} | "
+        f"{row['event_type']} | "
+        f"{row['page']} | "
+        f"{row['category']}"
+    )
+
+
+
 # Latest events
 st.subheader("Latest Events")
 
@@ -458,4 +482,11 @@ st.download_button(
     data=excel_buffer,
     file_name="filtered_events.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
+
+st.markdown("---")
+
+st.caption(
+    "User Behavior Analytics Platform | FastAPI | PostgreSQL | Kafka | Streamlit | Railway"
 )
