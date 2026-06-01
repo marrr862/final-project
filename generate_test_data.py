@@ -2,7 +2,7 @@ import requests
 import random
 from datetime import datetime, timedelta
 
-API_URL = "http://localhost:8000/events"
+API_URL = "https://web-production-30c3e.up.railway.app/events"
 
 event_types = [
     "click",

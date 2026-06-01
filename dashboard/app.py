@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import requests
 from collections import Counter
+from io import BytesIO
 st.set_page_config(
     page_title="User Behavior Analytics Dashboard",
     layout="wide"
@@ -11,6 +12,20 @@ st.set_page_config(
 API_URL = "https://web-production-30c3e.up.railway.app"
 
 st.title("📊 User Behavior Analytics Dashboard")
+st.info(
+    """
+    📌 System Summary
+
+    • FastAPI Backend
+    • PostgreSQL Database
+    • Kafka Streaming
+    • Fraud Detection
+    • Recommendation System
+    • Engagement Analytics
+    • Session Analytics
+    • Railway Cloud Deployment
+    """
+)
 st.caption("Cloud-connected dashboard using Railway FastAPI backend")
 st.sidebar.header("Live Controls")
 
@@ -62,7 +77,7 @@ if not events:
 df = pd.DataFrame(events)
 
 if "timestamp" in df.columns:
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed", errors="coerce")
 
 # Filters
 st.sidebar.header("Filters")
@@ -82,6 +97,12 @@ page_filter = st.sidebar.selectbox(
     ["All"] + sorted(df["page"].dropna().astype(str).unique().tolist())
 )
 
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔍 Quick Search")
+
+search_user = st.sidebar.text_input("Search User ID")
+
+
 filtered_df = df.copy()
 
 if user_filter != "All":
@@ -92,6 +113,12 @@ if event_filter != "All":
 
 if page_filter != "All":
     filtered_df = filtered_df[filtered_df["page"] == page_filter]
+
+if search_user:
+    filtered_df = filtered_df[
+        filtered_df["user_id"].astype(str).str.contains(search_user)
+    ]
+
 
 # KPI cards
 st.subheader("Overview")
@@ -124,8 +151,37 @@ admin2.metric("Total Users", filtered_df["user_id"].nunique())
 admin3.metric("Most Active User", most_active_user)
 admin4.metric("Suspicious Users", suspicious_count)
 admin5.metric("Top Category", top_category)
+st.markdown("---")
+st.subheader("🥇 Top Users Leaderboard")
+
+top_users = (
+    filtered_df["user_id"]
+    .value_counts()
+    .reset_index()
+)
+
+top_users.columns = ["user_id", "events"]
+
+st.dataframe(top_users.head(10), use_container_width=True)
+
+fig_top = px.bar(
+    top_users.head(10),
+    x="user_id",
+    y="events",
+    title="Most Active Users"
+)
+
+st.plotly_chart(fig_top, use_container_width=True)
 
 
+st.markdown("---")
+st.subheader("📋 Data Quality")
+
+q1, q2, q3 = st.columns(3)
+
+q1.metric("Rows", len(filtered_df))
+q2.metric("Missing Values", int(filtered_df.isna().sum().sum()))
+q3.metric("Unique Users", filtered_df["user_id"].nunique())
 # Charts
 c1, c2 = st.columns(2)
 
@@ -314,20 +370,23 @@ st.markdown("---")
 st.subheader("📈 User Behavior Timeline")
 
 if not filtered_df.empty and "timestamp" in filtered_df.columns:
-    timeline_df = filtered_df.sort_values("timestamp")
+    timeline_df = filtered_df.dropna(subset=["timestamp"]).sort_values("timestamp")
 
-    fig_timeline = px.scatter(
-    timeline_df,
-    x="timestamp",
-    y="user_id",
-    color="event_type",
-    symbol="event_type",
-    size="product_id",
-    title="User Events Over Time",
-    hover_data=["page", "category", "product_id"]
-)
+    if not timeline_df.empty:
+        fig_timeline = px.scatter(
+            timeline_df,
+            x="timestamp",
+            y="user_id",
+            color="event_type",
+            symbol="event_type",
+            size="product_id",
+            title="User Events Over Time",
+            hover_data=["page", "category", "product_id"]
+        )
 
-st.plotly_chart(fig_timeline, use_container_width=True)
+        st.plotly_chart(fig_timeline, use_container_width=True)
+    else:
+        st.info("No valid timestamp data available for timeline.")
 
 
 st.markdown("---")
@@ -361,4 +420,17 @@ st.download_button(
     data=csv,
     file_name="filtered_events.csv",
     mime="text/csv"
+)
+excel_buffer = BytesIO()
+
+with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+    filtered_df.to_excel(writer, index=False, sheet_name="Events")
+
+excel_buffer.seek(0)
+
+st.download_button(
+    label="Download Filtered Events as Excel",
+    data=excel_buffer,
+    file_name="filtered_events.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
