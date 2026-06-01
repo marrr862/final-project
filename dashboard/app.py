@@ -101,7 +101,8 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("🔍 Quick Search")
 
 search_user = st.sidebar.text_input("Search User ID")
-
+search_page = st.sidebar.text_input("Search Page")
+search_category = st.sidebar.text_input("Search Category")
 
 filtered_df = df.copy()
 
@@ -118,7 +119,15 @@ if search_user:
     filtered_df = filtered_df[
         filtered_df["user_id"].astype(str).str.contains(search_user)
     ]
+if search_page:
+    filtered_df = filtered_df[
+        filtered_df["page"].astype(str).str.contains(search_page, case=False)
+    ]
 
+if search_category:
+    filtered_df = filtered_df[
+        filtered_df["category"].astype(str).str.contains(search_category, case=False)
+    ]
 
 # KPI cards
 st.subheader("Overview")
@@ -406,7 +415,23 @@ with t2:
     trending_categories.columns = ["category", "count"]
     st.dataframe(trending_categories.head(10), use_container_width=True)
 
+st.markdown("---")
+st.subheader("🧠 Smart Insights")
 
+if len(filtered_df) > 0:
+    top_user = filtered_df["user_id"].value_counts().idxmax()
+    top_page = filtered_df["page"].value_counts().idxmax()
+    top_category = filtered_df["category"].value_counts().idxmax()
+
+    st.success(
+        f"""
+        Most active user: {top_user}
+
+        Most visited page: {top_page}
+
+        Most popular category: {top_category}
+        """
+    )
 
 # Latest events
 st.subheader("Latest Events")
