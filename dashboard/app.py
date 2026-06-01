@@ -105,6 +105,27 @@ col4.metric("Top Event", summary.get("top_event_type", "N/A"))
 
 st.markdown("---")
 
+
+st.markdown("---")
+st.subheader("🛠 Admin Analytics Panel")
+
+admin1, admin2, admin3, admin4, admin5 = st.columns(5)
+
+most_active_user = filtered_df["user_id"].value_counts().idxmax()
+top_category = filtered_df["category"].value_counts().idxmax()
+
+suspicious_count = 0
+if fraud_users:
+    fraud_df = pd.DataFrame(fraud_users)
+    suspicious_count = len(fraud_df[fraud_df["status"] == "suspicious"])
+
+admin1.metric("Total Events", len(filtered_df))
+admin2.metric("Total Users", filtered_df["user_id"].nunique())
+admin3.metric("Most Active User", most_active_user)
+admin4.metric("Suspicious Users", suspicious_count)
+admin5.metric("Top Category", top_category)
+
+
 # Charts
 c1, c2 = st.columns(2)
 
@@ -218,41 +239,117 @@ if engagement:
         title="Top User Engagement Scores"
     )
 
-   
     st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
 
-st.subheader("🧠 Smart Insights")
+st.subheader("🧩 Session Analytics")
 
-if not filtered_df.empty:
-    most_active_user = filtered_df["user_id"].value_counts().idxmax()
-    most_common_event = filtered_df["event_type"].value_counts().idxmax()
-    most_popular_page = filtered_df["page"].value_counts().idxmax()
-
-    st.info(
-        f"""
-        Most active user is **{most_active_user}**.  
-        Most common event is **{most_common_event}**.  
-        Most popular page is **{most_popular_page}**.
-        """
+session_df = (
+    filtered_df.groupby("user_id")
+    .agg(
+        session_events=("id", "count"),
+        first_event=("timestamp", "min"),
+        last_event=("timestamp", "max")
     )
+    .reset_index()
+)
+
+session_df["session_duration_minutes"] = (
+    (session_df["last_event"] - session_df["first_event"]).dt.total_seconds() / 60
+).round(2)
+
+def get_session_type(count):
+    if count <= 3:
+        return "Short Session"
+    elif count <= 7:
+        return "Medium Session"
+    else:
+        return "Long Session"
+
+session_df["session_type"] = session_df["session_events"].apply(get_session_type)
+
+st.dataframe(session_df, use_container_width=True)
+
+fig_session = px.bar(
+    session_df,
+    x="user_id",
+    y="session_events",
+    color="session_type",
+    title="Session Events by User"
+)
+
+st.plotly_chart(fig_session, use_container_width=True)
+
+
 
 st.markdown("---")
 
-st.subheader("🕒 Recent Activity Feed")
+st.subheader("🚨 Anomaly Alerts Panel")
 
-recent_df = filtered_df.sort_values("timestamp", ascending=False).head(10)
+if fraud_users:
+    fraud_df = pd.DataFrame(fraud_users)
 
-for _, row in recent_df.iterrows():
-    st.write(
-        f"User **{row['user_id']}** did **{row['event_type']}** on **{row['page']}** "
-        f"at `{row['timestamp']}`"
-    )
+    suspicious_df = fraud_df[fraud_df["status"] == "suspicious"]
+
+    total_suspicious = len(suspicious_df)
+    max_fraud_score = fraud_df["fraud_score"].max()
+    most_risky_user = fraud_df.sort_values("fraud_score", ascending=False).iloc[0]["user_id"]
+
+    a1, a2, a3 = st.columns(3)
+
+    a1.metric("Suspicious Users", total_suspicious)
+    a2.metric("Max Fraud Score", round(max_fraud_score, 2))
+    a3.metric("Most Risky User", most_risky_user)
+
+    if total_suspicious > 0:
+        st.error("High-risk user behavior detected.")
+        st.dataframe(suspicious_df, use_container_width=True)
+    else:
+        st.success("No high-risk users detected.")
+
+
+st.markdown("---")
+
+st.subheader("📈 User Behavior Timeline")
+
+if not filtered_df.empty and "timestamp" in filtered_df.columns:
+    timeline_df = filtered_df.sort_values("timestamp")
+
+    fig_timeline = px.scatter(
+    timeline_df,
+    x="timestamp",
+    y="user_id",
+    color="event_type",
+    symbol="event_type",
+    size="product_id",
+    title="User Events Over Time",
+    hover_data=["page", "category", "product_id"]
+)
+
+st.plotly_chart(fig_timeline, use_container_width=True)
+
+
+st.markdown("---")
+st.subheader("🔥 Trending Analytics")
+
+t1, t2 = st.columns(2)
+
+with t1:
+    st.write("Trending Pages")
+    trending_pages = filtered_df["page"].value_counts().reset_index()
+    trending_pages.columns = ["page", "count"]
+    st.dataframe(trending_pages.head(10), use_container_width=True)
+
+with t2:
+    st.write("Trending Categories")
+    trending_categories = filtered_df["category"].value_counts().reset_index()
+    trending_categories.columns = ["category", "count"]
+    st.dataframe(trending_categories.head(10), use_container_width=True)
+
+
 
 # Latest events
-
-
 st.subheader("Latest Events")
 
 st.dataframe(filtered_df.head(50), use_container_width=True)
