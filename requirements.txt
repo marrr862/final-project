@@ -10,3 +10,5 @@ pandas
 plotly
 requests
 openpyxl
+PyJWT
+python-multipart

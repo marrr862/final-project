@@ -149,16 +149,20 @@ st.markdown("---")
 
 st.markdown("---")
 st.subheader("🛠 Admin Analytics Panel")
+suspicious_count = 0
+if fraud_users:
+    fraud_df = pd.DataFrame(fraud_users)
+    suspicious_count = len(fraud_df[fraud_df["status"] == "suspicious"])
+
+if suspicious_count > 0:
+    st.error(f"⚠️ {suspicious_count} suspicious users detected")
+else:
+    st.success("✅ No suspicious users detected")
 
 admin1, admin2, admin3, admin4, admin5 = st.columns(5)
 
 most_active_user = filtered_df["user_id"].value_counts().idxmax()
 top_category = filtered_df["category"].value_counts().idxmax()
-
-suspicious_count = 0
-if fraud_users:
-    fraud_df = pd.DataFrame(fraud_users)
-    suspicious_count = len(fraud_df[fraud_df["status"] == "suspicious"])
 
 admin1.metric("Total Events", len(filtered_df))
 admin2.metric("Total Users", filtered_df["user_id"].nunique())
@@ -200,12 +204,19 @@ q3.metric("Unique Users", filtered_df["user_id"].nunique())
 c1, c2 = st.columns(2)
 
 with c1:
-    st.subheader("Event Types")
-    if event_types:
-        event_df = pd.DataFrame(event_types)
-        fig = px.bar(event_df, x="event_type", y="count", title="Events by Type")
-        st.plotly_chart(fig, use_container_width=True)
+    st.subheader("📊 Event Distribution")
 
+    event_dist = filtered_df["event_type"].value_counts().reset_index()
+    event_dist.columns = ["event_type", "count"]
+
+    fig = px.pie(
+        event_dist,
+        names="event_type",
+        values="count",
+        title="Event Distribution"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 with c2:
     st.subheader("Top Pages")
     if pages:
@@ -489,4 +500,16 @@ st.markdown("---")
 
 st.caption(
     "User Behavior Analytics Platform | FastAPI | PostgreSQL | Kafka | Streamlit | Railway"
+)
+st.markdown("---")
+
+st.info(
+    f"""
+    Project Statistics
+
+    Total Events: {len(filtered_df)}
+    Total Users: {filtered_df['user_id'].nunique()}
+    Total Categories: {filtered_df['category'].nunique()}
+    Total Pages: {filtered_df['page'].nunique()}
+    """
 )

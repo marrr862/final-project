@@ -1,12 +1,18 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from collections import Counter
+from datetime import datetime, timedelta
+
+import jwt
+
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from app.schemas import UserEvent, UserEventResponse
 from app.producer import send_event_to_kafka
 from app.config import KAFKA_TOPIC
 from app.database import SessionLocal, engine, Base
 from app.models import Event
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -15,6 +21,44 @@ app = FastAPI(
     description="Real-time user behavior tracking system with FastAPI, Kafka, Spark, PostgreSQL and analytics.",
     version="1.0.0"
 )
+
+# JWT settings
+SECRET_KEY = "my_secret_key"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
+fake_users_db = {
+    "admin": {
+        "username": "admin",
+        "password": "admin123"
+    }
+}
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verify_token(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        return username
+
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 
 def get_db():
@@ -38,6 +82,34 @@ def health_check():
     return {
         "status": "ok",
         "service": "User Behavior Analytics API"
+    }
+
+
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = fake_users_db.get(form_data.username)
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    if user["password"] != form_data.password:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    access_token = create_access_token(
+        data={"sub": user["username"]}
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
+
+
+@app.get("/protected")
+def protected_route(current_user: str = Depends(verify_token)):
+    return {
+        "message": "This is a protected route",
+        "user": current_user
     }
 
 
@@ -128,10 +200,10 @@ def analytics_summary(db: Session = Depends(get_db)):
 @app.get("/analytics/users")
 def user_analytics(db: Session = Depends(get_db)):
     events = db.query(Event).all()
-
     user_counts = Counter(event.user_id for event in events)
 
     result = []
+
     for user_id, count in user_counts.items():
         if count <= 2:
             segment = "low"
@@ -153,7 +225,6 @@ def user_analytics(db: Session = Depends(get_db)):
 @app.get("/analytics/pages")
 def page_analytics(db: Session = Depends(get_db)):
     events = db.query(Event).all()
-
     pages = [event.page for event in events if event.page]
     page_counts = Counter(pages)
 
@@ -166,7 +237,6 @@ def page_analytics(db: Session = Depends(get_db)):
 @app.get("/analytics/events")
 def event_type_analytics(db: Session = Depends(get_db)):
     events = db.query(Event).all()
-
     event_types = [event.event_type for event in events if event.event_type]
     event_counts = Counter(event_types)
 
@@ -179,7 +249,6 @@ def event_type_analytics(db: Session = Depends(get_db)):
 @app.get("/analytics/categories")
 def category_analytics(db: Session = Depends(get_db)):
     events = db.query(Event).all()
-
     categories = [event.category for event in events if event.category]
     category_counts = Counter(categories)
 
@@ -187,6 +256,33 @@ def category_analytics(db: Session = Depends(get_db)):
         {"category": category, "count": count}
         for category, count in category_counts.most_common()
     ]
+
+
+@app.get("/analytics/engagement")
+def engagement_analytics(db: Session = Depends(get_db)):
+    events = db.query(Event).all()
+    user_counts = Counter(event.user_id for event in events)
+
+    result = []
+
+    for user_id, count in user_counts.items():
+        if count <= 2:
+            engagement_level = "Low"
+        elif count <= 5:
+            engagement_level = "Medium"
+        else:
+            engagement_level = "High"
+
+        engagement_score = min(count * 10, 100)
+
+        result.append({
+            "user_id": user_id,
+            "event_count": count,
+            "engagement_score": engagement_score,
+            "engagement_level": engagement_level
+        })
+
+    return sorted(result, key=lambda x: x["engagement_score"], reverse=True)
 
 
 @app.get("/recommendations/{user_id}")
@@ -217,7 +313,6 @@ def recommend_for_user(user_id: int, db: Session = Depends(get_db)):
 @app.get("/fraud/users")
 def fraud_users(db: Session = Depends(get_db)):
     events = db.query(Event).all()
-
     user_counts = Counter(event.user_id for event in events)
 
     result = []
@@ -233,30 +328,3 @@ def fraud_users(db: Session = Depends(get_db)):
         })
 
     return result
-
-@app.get("/analytics/engagement")
-def engagement_analytics(db: Session = Depends(get_db)):
-    events = db.query(Event).all()
-
-    user_counts = Counter(event.user_id for event in events)
-
-    result = []
-
-    for user_id, count in user_counts.items():
-        if count <= 2:
-            engagement_level = "Low"
-        elif count <= 5:
-            engagement_level = "Medium"
-        else:
-            engagement_level = "High"
-
-        engagement_score = min(count * 10, 100)
-
-        result.append({
-            "user_id": user_id,
-            "event_count": count,
-            "engagement_score": engagement_score,
-            "engagement_level": engagement_level
-        })
-
-    return sorted(result, key=lambda x: x["engagement_score"], reverse=True)
