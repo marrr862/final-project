@@ -19,7 +19,6 @@ A real-time user behavior analytics platform built with FastAPI, PostgreSQL, Kaf
 
 ## Architecture
 
-```text
 User
  ↓
 FastAPI API
@@ -57,18 +56,22 @@ Docker
 Railway
 GitHub
 
-Technologies
-Python
-FastAPI
-PostgreSQL
-SQLAlchemy
-Kafka
-Spark
-Streamlit
-Plotly
-Docker
-Railway
-GitHub
+API Endpoints
+GET /
+GET /health
+POST /login
+GET /protected
+POST /events
+GET /events
+GET /analytics/summary
+GET /analytics/users
+GET /analytics/pages
+GET /analytics/events
+GET /analytics/categories
+GET /analytics/engagement
+GET /fraud/users
+GET /recommendations/{user_id}
+
 
 Local Run
 docker compose up --build
@@ -89,9 +92,3 @@ Project Result
 The project demonstrates a complete real-time analytics system with event collection, cloud API, database storage, streaming pipeline, fraud detection, recommendations and interactive dashboard visualization.
 
 
-## 3. commit
-
-```bash
-git add .
-git commit -m "add README"
-git push

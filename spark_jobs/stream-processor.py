@@ -31,13 +31,13 @@ parsed_df = json_df.select(
     from_json(col("json_value"), schema).alias("data")
 ).select("data.*")
 
-# 1. Event count by type
+
 events_by_type = parsed_df.groupBy("event_type").count()
 
-# 2. Top pages
+
 top_pages = parsed_df.groupBy("page").count()
 
-# 3. Active users
+
 active_users = parsed_df.groupBy("user_id").count()
 
 query1 = events_by_type.writeStream \

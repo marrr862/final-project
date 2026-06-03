@@ -40,7 +40,7 @@ api_url = st.sidebar.text_input("API URL", API_URL)
 if st.sidebar.button("Refresh Data"):
     st.rerun()
 
-# API helper
+
 def get_data(endpoint):
     try:
         response = requests.get(f"{api_url}{endpoint}", timeout=10)
@@ -52,7 +52,7 @@ def get_data(endpoint):
         st.error(f"Could not connect to API: {e}")
         return None
 
-# API status
+
 health = get_data("/health")
 
 if health:
@@ -61,7 +61,7 @@ else:
     st.error("❌ Cloud API is not available")
     st.stop()
 
-# Load data
+
 events = get_data("/events")
 summary = get_data("/analytics/summary")
 users = get_data("/analytics/users")
@@ -79,7 +79,7 @@ df = pd.DataFrame(events)
 if "timestamp" in df.columns:
     df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed", errors="coerce")
 
-# Filters
+
 st.sidebar.header("Filters")
 
 user_filter = st.sidebar.selectbox(
@@ -134,7 +134,7 @@ if search_category:
         filtered_df["category"].astype(str).str.contains(search_category, case=False)
     ]
 
-# KPI cards
+
 st.subheader("Overview")
 
 col1, col2, col3, col4 = st.columns(4)
@@ -215,7 +215,9 @@ q1, q2, q3 = st.columns(3)
 q1.metric("Rows", len(filtered_df))
 q2.metric("Missing Values", int(filtered_df.isna().sum().sum()))
 q3.metric("Unique Users", filtered_df["user_id"].nunique())
-# Charts
+
+
+
 c1, c2 = st.columns(2)
 
 with c1:
@@ -261,7 +263,7 @@ with c4:
 
 st.markdown("---")
 
-# User analytics
+
 st.subheader("User Analytics")
 
 if users:
@@ -276,7 +278,7 @@ if users:
 
 st.markdown("---")
 
-# Fraud users
+
 st.subheader("Fraud / Suspicious Users")
 
 if fraud_users:
@@ -301,7 +303,7 @@ if fraud_users:
 
 st.markdown("---")
 
-# Recommendation section
+
 st.subheader("Recommendation Test")
 
 recommend_user_id = st.number_input("Enter User ID", min_value=1, step=1)
@@ -483,12 +485,12 @@ for _, row in recent_events.iterrows():
 
 
 
-# Latest events
+
 st.subheader("Latest Events")
 
 st.dataframe(filtered_df.head(50), use_container_width=True)
 
-# CSV export
+
 csv = filtered_df.to_csv(index=False).encode("utf-8")
 st.download_button(
     label="Download Filtered Events as CSV",
