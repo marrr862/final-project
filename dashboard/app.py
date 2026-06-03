@@ -192,6 +192,21 @@ fig_top = px.bar(
 st.plotly_chart(fig_top, use_container_width=True)
 
 
+st.subheader("📈 User Activity Distribution")
+
+user_dist = filtered_df["user_id"].value_counts()
+
+fig = px.bar(
+    x=user_dist.index,
+    y=user_dist.values,
+    labels={"x": "User ID", "y": "Events"},
+    title="User Activity Distribution"
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+
+
 st.markdown("---")
 st.subheader("📋 Data Quality")
 
